@@ -1,0 +1,74 @@
+version: '3.4'
+
+x-api-url: &x-api-url "${EXTERNAL_SCHEME}://${EXTERNAL_HOST}:${EXTERNAL_PORT}${SOS_CONTEXT_PATH}/api/"
+x-sos-url: &x-sos-url "${EXTERNAL_SCHEME}://${EXTERNAL_HOST}:${EXTERNAL_PORT}${SOS_CONTEXT_PATH}/service"
+x-sta-url: &x-sta-url "${EXTERNAL_SCHEME}://${EXTERNAL_HOST}:${EXTERNAL_PORT}${STA_CONTEXT_PATH}/"
+
+services:
+  
+  sta:
+    image: 52north/sensorweb-server-sta:${STA_VERSION}
+    # build: https://github.com/52North/sensorweb-server-sta.git#develop
+    ports:
+      - 8081:8081
+      - 1883:1883
+      - 8883:8883
+    environment:
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_ORG_N52: TRACE
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:${POSTGRES_PORT}/${POSTGRES_DATABASE}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPING_JPA_PROPERTIES_HIBERNATE_HBM2DDL: update
+      MQTT_BROKER_PLAINTCP_ENABLED: "true"
+      MQTT_BROKER_WEBSOCKET_ENABLED: "true"
+      MQTT_BROKER_PERSISTENCE_ENABLED: "false"
+      SERVER_ROOTURL: *x-sta-url
+      SERVER_SERVLET_CONTEXT_PATH: ${STA_CONTEXT_PATH}
+      SERVER_FEATURE_UPDATEFOI: "false"
+      SERVER_FEATURE_MQTTPUBLISHTOPICS: Locations, Observations
+      SERVER_FEATURE_VARIABLEENCODINGTYPE: "true"
+      SERVER_FEATURE_ISMOBILE: "false"
+      SERVER_PORT: ${STA_INTERNAL_HTTP_PORT}
+      MQTT_BROKER_WEBSOCKET_PORT: ${STA_INTERNAL_WEBSOCKET_PORT}
+      MQTT_BROKER_PLAINTCP_PORT: ${STA_INTERNAL_MQTT_PORT}
+    depends_on:
+    - database
+  
+  proxy:
+    image: siuk/proxy:latest
+    build: ./proxy
+    ports:
+      - ${EXTERNAL_PORT}:80
+    environment:
+      STA_HTTP_UPSTREAM: sta:${STA_INTERNAL_HTTP_PORT}
+      STA_WEBSOCKET_UPSTREAM: sta:${STA_INTERNAL_WEBSOCKET_PORT}
+      HELGOLAND_UPSTREAM: helgoland:80
+    depends_on:
+      - sos
+      - sta
+
+  helgoland:
+    image: siuk/helgoland:latest
+    #build: https://github.com/52North/helgoland-toolbox.git#feature/ng13
+    build: ./helgoland
+    environment:
+      PORT: 80
+      BASE_HREF: /
+      STA_URL: *x-sta-url
+    volumes:
+      - ./helgoland.json:/usr/share/nginx/html/assets/app-config.json    
+
+  database:
+    image: postgis/postgis:12-master
+    restart: on-failure
+    environment:
+      - POSTGRES_DB=${POSTGRES_DATABASE}
+      - POSTGRES_USER=${POSTGRES_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - ALLOW_IP_RANGE=0.0.0.0/0
+      - POSTGRES_MULTIPLE_EXTENSIONS=postgis
+
+    # For debug/show purposes!
+    ports:
+      - 5000:5432
