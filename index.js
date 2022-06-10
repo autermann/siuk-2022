@@ -11,6 +11,8 @@ const {
   featureOfInterest: { id: featureOfInterestId },
 } = require("./lib/settings");
 
+const { checkThreshold } = require("./lib/alert");
+
 async function persist(topic, message) {
   fs.mkdir(`data/${topic}`, { recursive: true });
   await fs.writeFile(
@@ -34,11 +36,19 @@ function createObservations(message) {
       id,
       name,
       unit: { symbol },
+      threshold
     } = props[key];
     const result = payload[key];
+
+    const toString = () => `${name} at ${time} is ${result} ${symbol}`;
+   
+
     const Datastream = reference(getDatastreamId(id));
-    log.info("%s @ %s is %f%s", name, time, result, symbol);
-    return { ...common, result, Datastream };
+    const observation = { ...common, result, Datastream, toString };
+
+    checkThreshold(observation, threshold);
+
+    return observation;
   });
 }
 
@@ -74,6 +84,7 @@ function createObservations(message) {
 
         return await Promise.all(
           observations.map(async (observation) => {
+            log.info(observation);
             await pub.publish(
               "v1.1/Observations",
               JSON.stringify(observation),

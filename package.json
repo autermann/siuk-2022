@@ -10,6 +10,7 @@
     "async-mqtt": "^2.6.2",
     "axios": "^0.27.2",
     "dotenv": "^16.0.1",
+    "nodemailer": "^6.7.5",
     "winston": "^3.7.2",
     "winston-console-format": "^1.0.8"
   }
