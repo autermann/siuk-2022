@@ -14,7 +14,7 @@ const {
 const { checkThreshold } = require("./lib/alert");
 
 async function persist(topic, message) {
-  fs.mkdir(`data/${topic}`, { recursive: true });
+  await fs.mkdir(`data/${topic}`, { recursive: true });
   await fs.writeFile(
     `data/${topic}/${new Date().toISOString()}.json`,
     JSON.stringify(message, null, 2)
